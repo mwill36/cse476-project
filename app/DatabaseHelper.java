@@ -1,3 +1,5 @@
+package edu.msu.willemi8.project;
+
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -56,26 +58,26 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     }
 
     // Get All Items
-//    public List<FridgeItem> getAllItems() {
-//        List<FridgeItem> itemList = new ArrayList<>();
-//        SQLiteDatabase db = this.getReadableDatabase();
-//        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_ITEMS + " ORDER BY " + COLUMN_EXPIRATION + " ASC", null);
-//
-//        if (cursor.moveToFirst()) {
-//            do {
-//                FridgeItem item = new FridgeItem(
-//                        cursor.getInt(0),
-//                        cursor.getString(1),
-//                        cursor.getString(2)
-//                );
-//                itemList.add(item);
-//            } while (cursor.moveToNext());
-//        }
-//
-//        cursor.close();
-//        db.close();
-//        return itemList;
-//    }
+    public List<FridgeItem> getAllItems() {
+        List<FridgeItem> itemList = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+        Cursor cursor = db.rawQuery("SELECT * FROM " + TABLE_ITEMS + " ORDER BY " + COLUMN_EXPIRATION + " ASC", null);
+
+        if (cursor.moveToFirst()) {
+            do {
+                FridgeItem item = new FridgeItem(
+                        cursor.getInt(0),
+                        cursor.getString(1),
+                        cursor.getString(2)
+                );
+                itemList.add(item);
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        db.close();
+        return itemList;
+    }
 
     // Delete an Item
     public void deleteItem(int id) {

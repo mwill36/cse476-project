@@ -1,3 +1,5 @@
+package edu.msu.willemi8.project;
+
 public class FridgeItem {
     private int id;
     private String name;
