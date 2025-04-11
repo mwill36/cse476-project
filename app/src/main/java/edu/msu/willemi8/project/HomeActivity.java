@@ -12,4 +12,9 @@ public class HomeActivity extends AppCompatActivity {
         setContentView(R.layout.activity_home);
 
     }
+
+
+    protected boolean onAddItemManually(int id, String name, String expirationDate){
+        return false;
+    }
 }

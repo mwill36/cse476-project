@@ -32,7 +32,6 @@ public class MainActivity extends AppCompatActivity {
         Button loginButton = findViewById(R.id.buttonLogin);
 
         loginButton.setOnClickListener(v -> {
-            Toast.makeText(this, "Login button clicked", Toast.LENGTH_SHORT).show(); // TEST
 
             String email = emailInput.getText().toString().trim();
             String password = passwordInput.getText().toString().trim();
