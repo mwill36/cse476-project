@@ -12,6 +12,13 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+
 public class MainActivity extends AppCompatActivity {
     DatabaseHelper dbHelper;
 
@@ -20,13 +27,13 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        dbHelper = new DatabaseHelper(this);
-
         EditText emailInput = findViewById(R.id.editTextEmail);
         EditText passwordInput = findViewById(R.id.editTextPassword);
         Button loginButton = findViewById(R.id.buttonLogin);
 
         loginButton.setOnClickListener(v -> {
+            Toast.makeText(this, "Login button clicked", Toast.LENGTH_SHORT).show(); // TEST
+
             String email = emailInput.getText().toString().trim();
             String password = passwordInput.getText().toString().trim();
 
@@ -35,22 +42,36 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            if (dbHelper.userExists(email, password)) {
-                Toast.makeText(this, "Welcome back!", Toast.LENGTH_SHORT).show();
-                goToHomeActivity();
-            } else if (dbHelper.checkEmailExists(email)) {
-                Toast.makeText(this, "Incorrect password.", Toast.LENGTH_SHORT).show();
-            } else {
-                if (dbHelper.insertUser(email, password)) {
-                    Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show();
-                    goToHomeActivity();
-                } else {
-                    Toast.makeText(this, "Failed to create account.", Toast.LENGTH_SHORT).show();
-                }
-            }
-        });
+            DatabaseReference dbRef = FirebaseDatabase.getInstance().getReference("users");
+            String safeEmail = email.replace(".", "_"); // Firebase keys can't contain '.'
 
+            dbRef.child(safeEmail).addListenerForSingleValueEvent(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot snapshot) {
+                    if (snapshot.exists()) {
+                        String storedPassword = snapshot.child("password").getValue(String.class);
+                        if (storedPassword.equals(password)) {
+                            Toast.makeText(MainActivity.this, "Welcome back!", Toast.LENGTH_SHORT).show();
+                            goToHomeActivity();
+                        } else {
+                            Toast.makeText(MainActivity.this, "Incorrect password.", Toast.LENGTH_SHORT).show();
+                        }
+                    } else {
+                        // Create new user
+                        dbRef.child(safeEmail).child("password").setValue(password);
+                        Toast.makeText(MainActivity.this, "Account created!", Toast.LENGTH_SHORT).show();
+                        goToHomeActivity();
+                    }
+                }
+
+                @Override
+                public void onCancelled(DatabaseError error) {
+                    Toast.makeText(MainActivity.this, "Database error: " + error.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
     }
+
 
     private void goToHomeActivity() {
         Intent intent = new Intent(this, HomeActivity.class);
