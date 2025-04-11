@@ -23,12 +23,16 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 public class HomeActivity extends AppCompatActivity {
+    String user;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
-
+        Intent intent = getIntent();
+        user = intent.getStringExtra("email");
+        TextView userView = findViewById(R.id.displayUserName);
+        userView.setText(user);
 
     }
 

@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">Project</string>
-    <string name="manual">Input Item Manually</string>
-    <string name="scan">Scan Barcode</string>
+    <string name="newitem">Add New Item</string>
+    <string name="existingitem">Add Existing Item</string>
 </resources>
