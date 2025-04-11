@@ -37,13 +37,13 @@ public class MainActivity extends AppCompatActivity {
 
             if (dbHelper.userExists(email, password)) {
                 Toast.makeText(this, "Welcome back!", Toast.LENGTH_SHORT).show();
-                goToHomeActivity(email);
+                goToHomeActivity();
             } else if (dbHelper.checkEmailExists(email)) {
                 Toast.makeText(this, "Incorrect password.", Toast.LENGTH_SHORT).show();
             } else {
                 if (dbHelper.insertUser(email, password)) {
                     Toast.makeText(this, "Account created successfully!", Toast.LENGTH_SHORT).show();
-                    goToHomeActivity(email);
+                    goToHomeActivity();
                 } else {
                     Toast.makeText(this, "Failed to create account.", Toast.LENGTH_SHORT).show();
                 }
@@ -52,11 +52,8 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void goToHomeActivity(String email) {
+    private void goToHomeActivity() {
         Intent intent = new Intent(this, HomeActivity.class);
-        intent.putExtra("email", email); // Pass email to next screen if you want
-        startActivity(intent);
-        finish(); // Optional: prevents back navigation to login
     }
 
 
