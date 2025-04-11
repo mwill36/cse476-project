@@ -44,7 +44,7 @@
             android:text="@string/manual" />
 
         <Button
-            android:id="@+id/scanBarcodeButton"
+            android:id="@+id/openCameraBtn"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_below="@id/manualInputButton"

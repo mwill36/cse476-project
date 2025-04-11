@@ -51,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
                         String storedPassword = snapshot.child("password").getValue(String.class);
                         if (storedPassword.equals(password)) {
                             Toast.makeText(MainActivity.this, "Welcome back!", Toast.LENGTH_SHORT).show();
-                            goToHomeActivity();
+                            goToHomeActivity(email);
                         } else {
                             Toast.makeText(MainActivity.this, "Incorrect password.", Toast.LENGTH_SHORT).show();
                         }
@@ -59,7 +59,7 @@ public class MainActivity extends AppCompatActivity {
                         // Create new user
                         dbRef.child(safeEmail).child("password").setValue(password);
                         Toast.makeText(MainActivity.this, "Account created!", Toast.LENGTH_SHORT).show();
-                        goToHomeActivity();
+                        goToHomeActivity(email);
                     }
                 }
 
@@ -72,8 +72,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    private void goToHomeActivity() {
+    private void goToHomeActivity(String email) {
         Intent intent = new Intent(this, HomeActivity.class);
+        intent.putExtra("email", email);
         startActivity(intent);
     }
 
