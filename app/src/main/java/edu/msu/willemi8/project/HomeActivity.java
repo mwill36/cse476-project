@@ -11,8 +11,5 @@ public class HomeActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
-//        String email = getIntent().getStringExtra("email");
-//        TextView welcomeText = findViewById(R.id.welcomeText);
-//        welcomeText.setText("Welcome, " + email + "!");
     }
 }
