@@ -2,32 +2,27 @@ package edu.msu.willemi8.project;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.view.MotionEvent;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import android.Manifest;
-import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.os.Bundle;
-import android.widget.Button;
+
 import android.widget.Toast;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-
+import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
 public class HomeActivity extends AppCompatActivity {
     String user;
+
+    private float startY1 = -1;
+    private float startY2 = -1;
+    private boolean isTwoFingerSwipe = false;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,6 +35,10 @@ public class HomeActivity extends AppCompatActivity {
 
         Button newItemButton = findViewById(R.id.newItemButton);
         newItemButton.setOnClickListener(v -> showAddItemDialog());
+
+        userView.setText(user);
+        loadItems();
+
     }
 
     private void showAddItemDialog() {
@@ -74,6 +73,7 @@ public class HomeActivity extends AppCompatActivity {
 
                     boolean success = onAddItemManually(id, name, expiration);
                     if (success) {
+
                         Toast.makeText(this, "Item added!", Toast.LENGTH_SHORT).show();
                     } else {
                         Toast.makeText(this, "Failed to add item", Toast.LENGTH_SHORT).show();
@@ -83,6 +83,38 @@ public class HomeActivity extends AppCompatActivity {
                 .setNegativeButton("Cancel", null)
                 .show();
     }
+
+    private void loadItems() {
+        String safeEmail = user.replace(".", "_");
+        DatabaseReference itemsRef = FirebaseDatabase.getInstance()
+                .getReference("users")
+                .child(safeEmail)
+                .child("items");
+
+        TextView itemsView = findViewById(R.id.itemsView);
+
+        itemsRef.get().addOnCompleteListener(task -> {
+            if (task.isSuccessful()) {
+                StringBuilder builder = new StringBuilder();
+
+                for (DataSnapshot itemSnapshot : task.getResult().getChildren()) {
+                    FridgeItem item = itemSnapshot.getValue(FridgeItem.class);
+                    if (item != null) {
+                        builder.append("• ")
+                                .append(item.name)
+                                .append(" (Exp: ")
+                                .append(item.expirationDate)
+                                .append(")\n");
+                    }
+                }
+
+                itemsView.setText(builder.toString());
+            } else {
+                itemsView.setText("Failed to load items.");
+            }
+        });
+    }
+
 
 
     protected boolean onAddItemManually(int id, String name, String expirationDate) {
@@ -97,10 +129,57 @@ public class HomeActivity extends AppCompatActivity {
 
         // Push item to Firebase under the user's items using the id as key
         userItemsRef.child(String.valueOf(id)).setValue(item)
-                .addOnSuccessListener(aVoid -> Toast.makeText(this, "Item saved!", Toast.LENGTH_SHORT).show())
-                .addOnFailureListener(e -> Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-
+                .addOnSuccessListener(aVoid -> {
+                    Toast.makeText(this, "Item saved!", Toast.LENGTH_SHORT).show();
+                    loadItems(); // 👈 refresh the view
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
         return true;
     }
+
+
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        int pointerCount = event.getPointerCount();
+
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+            case MotionEvent.ACTION_POINTER_DOWN:
+                if (pointerCount == 2) {
+                    startY1 = event.getY(0);
+                    startY2 = event.getY(1);
+                    isTwoFingerSwipe = true;
+                }
+                break;
+
+            case MotionEvent.ACTION_MOVE:
+                if (isTwoFingerSwipe && pointerCount == 2) {
+                    float endY1 = event.getY(0);
+                    float endY2 = event.getY(1);
+
+                    // Check for upward movement of both fingers
+                    if ((startY1 - endY1 > 100) && (startY2 - endY2 > 100)) {
+                        isTwoFingerSwipe = false; // prevent triggering multiple times
+
+                        // Simulate button click
+                        Button newItemButton = findViewById(R.id.newItemButton);
+                        newItemButton.performClick();
+                    }
+                }
+                break;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_POINTER_UP:
+                startY1 = -1;
+                startY2 = -1;
+                isTwoFingerSwipe = false;
+                break;
+        }
+
+        return super.onTouchEvent(event);
+    }
+
 
 }
