@@ -16,6 +16,13 @@ import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+
 public class HomeActivity extends AppCompatActivity {
     String user;
 
@@ -31,12 +38,13 @@ public class HomeActivity extends AppCompatActivity {
         Intent intent = getIntent();
         user = intent.getStringExtra("email");
         TextView userView = findViewById(R.id.displayUserName);
-        userView.setText(user);
+        String username = user.split("@")[0];
+        String welcomeMessage = "Hi " + username + " 👋\nHere's what’s in your pantry:";
+        userView.setText(welcomeMessage);
 
         Button newItemButton = findViewById(R.id.newItemButton);
         newItemButton.setOnClickListener(v -> showAddItemDialog());
 
-        userView.setText(user);
         loadItems();
 
     }
@@ -57,6 +65,29 @@ public class HomeActivity extends AppCompatActivity {
                     String idStr = inputId.getText().toString().trim();
                     String name = inputName.getText().toString().trim();
                     String expiration = inputExpiration.getText().toString().trim();
+                    try {
+                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                        sdf.setLenient(false);
+                        Date enteredDate = sdf.parse(expiration);
+
+                        Calendar todayCal = Calendar.getInstance();
+                        todayCal.set(Calendar.HOUR_OF_DAY, 0);
+                        todayCal.set(Calendar.MINUTE, 0);
+                        todayCal.set(Calendar.SECOND, 0);
+                        todayCal.set(Calendar.MILLISECOND, 0);
+                        Date today = todayCal.getTime();
+
+                        if (enteredDate.before(today)) {
+                            Toast.makeText(this, "Expiration date cannot be in the past", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                    }
+                    catch (ParseException e) {
+                        Toast.makeText(this, "Invalid date format. Use YYYY-MM-DD", Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+
 
                     if (idStr.isEmpty() || name.isEmpty() || expiration.isEmpty()) {
                         Toast.makeText(this, "Please fill out all fields", Toast.LENGTH_SHORT).show();
@@ -100,11 +131,44 @@ public class HomeActivity extends AppCompatActivity {
                 for (DataSnapshot itemSnapshot : task.getResult().getChildren()) {
                     FridgeItem item = itemSnapshot.getValue(FridgeItem.class);
                     if (item != null) {
-                        builder.append("• ")
-                                .append(item.name)
-                                .append(" (Exp: ")
-                                .append(item.expirationDate)
-                                .append(")\n");
+                        try {
+                            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                            Date expiration = sdf.parse(item.expirationDate);
+
+                            Calendar todayCal = Calendar.getInstance();
+                            todayCal.set(Calendar.HOUR_OF_DAY, 0);
+                            todayCal.set(Calendar.MINUTE, 0);
+                            todayCal.set(Calendar.SECOND, 0);
+                            todayCal.set(Calendar.MILLISECOND, 0);
+                            Date today = todayCal.getTime();
+
+                            Calendar expCal = Calendar.getInstance();
+                            expCal.setTime(expiration);
+                            expCal.set(Calendar.HOUR_OF_DAY, 0);
+                            expCal.set(Calendar.MINUTE, 0);
+                            expCal.set(Calendar.SECOND, 0);
+                            expCal.set(Calendar.MILLISECOND, 0);
+                            expiration = expCal.getTime();
+
+                            long diffInMillis = expiration.getTime() - today.getTime();
+                            long daysLeft = TimeUnit.MILLISECONDS.toDays(diffInMillis);
+
+                            builder.append("• ")
+                                    .append(item.name)
+                                    .append(" — Expires in ")
+                                    .append(daysLeft)
+                                    .append(" day").append(daysLeft != 1 ? "s" : "")
+                                    .append(" (").append(item.expirationDate).append(")\n");
+
+                        }
+                        catch (Exception e) {
+                            builder.append("• ")
+                                    .append(item.name)
+                                    .append(" (Exp: ")
+                                    .append(item.expirationDate)
+                                    .append(")\n");
+                        }
+
                     }
                 }
 
