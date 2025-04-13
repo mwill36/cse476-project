@@ -26,19 +26,17 @@ package edu.msu.willemi8.project;//package edu.msu.willemi8.project;
 
 
 public class FridgeItem {
-    public int id;
+    public String id;          // ← was int
     public String name;
     public String expirationDate;
 
     // Required for Firebase
-    public FridgeItem() {
-    }
+    public FridgeItem() {}
 
-    public FridgeItem(int id, String name, String expirationDate) {
+    public FridgeItem(String id, String name, String expirationDate) {
         this.id = id;
         this.name = name;
         this.expirationDate = expirationDate;
     }
-
-    // Optional: Getters/Setters if needed
 }
+

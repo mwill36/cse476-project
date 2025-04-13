@@ -13,7 +13,6 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -33,17 +32,27 @@ android {
 }
 
 dependencies {
+    // Firebase BOM and individual Firebase libs
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.analytics)
-    implementation(libs.barcode.scanning)
+    implementation(libs.firebase.database)
+    implementation(libs.firebase.inappmessaging)
+
+    // ML Kit barcode scanning  (Kotlin‑DSL syntax)
+    implementation("com.google.mlkit:barcode-scanning:17.2.0")
+
+    // CameraX
+    implementation(libs.camera.view)
+    implementation(libs.camera.lifecycle)
+    implementation("androidx.camera:camera-camera2:1.3.2")   // Kotlin‑DSL
+
+    // AndroidX UI
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.activity)
     implementation(libs.constraintlayout)
-    implementation(libs.firebase.database)
-    implementation(libs.camera.view)
-    implementation(libs.camera.lifecycle)
-    implementation(libs.firebase.inappmessaging)
+
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)

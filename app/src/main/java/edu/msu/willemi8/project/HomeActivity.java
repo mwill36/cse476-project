@@ -1,16 +1,19 @@
 package edu.msu.willemi8.project;
 
 import android.annotation.SuppressLint;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.os.Bundle;
 import android.view.MotionEvent;
+import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
-
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.widget.Toast;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
 
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseReference;
@@ -23,227 +26,271 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Main screen shown after login.  Lets the user add new items, update existing
+ * ones via barcode scan, and log out.  Two‑finger upward swipe also opens the
+ * “Add New Item” dialog.
+ */
 public class HomeActivity extends AppCompatActivity {
-    String user;
 
-    private float startY1 = -1;
-    private float startY2 = -1;
+    /** Logged‑in user’s e‑mail (passed from MainActivity) */
+    private String user;
+
+    /* ──────────────────────────  swipe helpers ────────────────────────── */
+    private float startY1 = -1, startY2 = -1;
     private boolean isTwoFingerSwipe = false;
 
+    /* ──────────────────────────  barcode helpers ──────────────────────── */
+    /** Reference to UPC/ID EditText in “New Item” dialog (so a scan can fill it) */
+    private EditText currentIdField;
+    /** true when scanner was opened to update an existing item */
+    private boolean scanForExisting = false;
+    /** Activity‑result launcher for ScannerActivity */
+    private ActivityResultLauncher<Intent> barcodeLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
-        Intent intent = getIntent();
-        user = intent.getStringExtra("email");
-        TextView userView = findViewById(R.id.displayUserName);
-        String username = user.split("@")[0];
-        String welcomeMessage = "Hi " + username + " 👋\nHere's what’s in your pantry:";
-        userView.setText(welcomeMessage);
 
-        Button newItemButton = findViewById(R.id.newItemButton);
-        newItemButton.setOnClickListener(v -> showAddItemDialog());
+        /* ------------------------------------------------------------- */
+        user = getIntent().getStringExtra("email");
+
+        TextView banner = findViewById(R.id.displayUserName);
+        banner.setText("Hi " + user.split("@")[0] + " 👋\nHere's what's in your pantry:");
+
+        /* ---------------------- buttons ------------------------------ */
+        findViewById(R.id.newItemButton).setOnClickListener(v -> showAddItemDialog());
+
+        findViewById(R.id.existingItemButton).setOnClickListener(v -> {
+            scanForExisting = true;
+            barcodeLauncher.launch(new Intent(this, ScannerActivity.class));
+        });
+
+        findViewById(R.id.logoutButton).setOnClickListener(v -> {
+            getSharedPreferences("login_prefs", MODE_PRIVATE).edit().clear().apply();
+            startActivity(new Intent(this, MainActivity.class));
+            finish();
+        });
+
+        /* ------------------- scanner result -------------------------- */
+        barcodeLauncher = registerForActivityResult(
+                new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() != RESULT_OK || result.getData() == null) return;
+                    String upc = result.getData().getStringExtra("UPC");
+                    if (upc == null) return;
+
+                    if (scanForExisting) {
+                        scanForExisting = false;
+                        handleExistingUpc(upc);
+                    } else if (currentIdField != null) {
+                        currentIdField.setText(upc);        // populate New‑Item dialog
+                    }
+                });
 
         loadItems();
-
     }
 
+    /* ───────────────────────────── dialogs ───────────────────────────── */
+
+    /** Opens the Add‑Item dialog (manual entry or barcode scan). */
     private void showAddItemDialog() {
-        // Inflate the custom layout
         @SuppressLint("InflateParams")
-        final android.view.View dialogView = getLayoutInflater().inflate(R.layout.dialog_add_item, null);
+        View dialog = getLayoutInflater().inflate(R.layout.dialog_add_item, null);
 
-        final EditText inputId = dialogView.findViewById(R.id.inputId);
-        final EditText inputName = dialogView.findViewById(R.id.inputName);
-        final EditText inputExpiration = dialogView.findViewById(R.id.inputExpiration);
+        EditText inputId  = dialog.findViewById(R.id.inputId);
+        EditText inputNm  = dialog.findViewById(R.id.inputName);
+        EditText inputExp = dialog.findViewById(R.id.inputExpiration);
 
-        new androidx.appcompat.app.AlertDialog.Builder(this)
+        currentIdField = inputId;
+
+        dialog.findViewById(R.id.buttonScan)
+                .setOnClickListener(v ->
+                        barcodeLauncher.launch(new Intent(this, ScannerActivity.class)));
+
+        new AlertDialog.Builder(this)
                 .setTitle("Add New Item")
-                .setView(dialogView)
-                .setPositiveButton("Add", (dialog, which) -> {
-                    String idStr = inputId.getText().toString().trim();
-                    String name = inputName.getText().toString().trim();
-                    String expiration = inputExpiration.getText().toString().trim();
-                    try {
-                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-                        sdf.setLenient(false);
-                        Date enteredDate = sdf.parse(expiration);
+                .setView(dialog)
+                .setPositiveButton("Add", (d, w) -> {
+                    currentIdField = null;           // dialog closing
 
-                        Calendar todayCal = Calendar.getInstance();
-                        todayCal.set(Calendar.HOUR_OF_DAY, 0);
-                        todayCal.set(Calendar.MINUTE, 0);
-                        todayCal.set(Calendar.SECOND, 0);
-                        todayCal.set(Calendar.MILLISECOND, 0);
-                        Date today = todayCal.getTime();
+                    String upc  = inputId.getText().toString().trim();
+                    String name = inputNm.getText().toString().trim();
+                    String exp  = inputExp.getText().toString().trim();
 
-                        if (enteredDate.before(today)) {
-                            Toast.makeText(this, "Expiration date cannot be in the past", Toast.LENGTH_SHORT).show();
-                            return;
-                        }
-
-                    }
-                    catch (ParseException e) {
-                        Toast.makeText(this, "Invalid date format. Use YYYY-MM-DD", Toast.LENGTH_SHORT).show();
-                        return;
-                    }
-
-
-                    if (idStr.isEmpty() || name.isEmpty() || expiration.isEmpty()) {
+                    if (upc.isEmpty() || name.isEmpty() || exp.isEmpty()) {
                         Toast.makeText(this, "Please fill out all fields", Toast.LENGTH_SHORT).show();
                         return;
                     }
-
-                    int id;
-                    try {
-                        id = Integer.parseInt(idStr);
-                    } catch (NumberFormatException e) {
-                        Toast.makeText(this, "ID must be a number", Toast.LENGTH_SHORT).show();
+                    if (!upc.matches("\\d+")) {
+                        Toast.makeText(this, "UPC/ID must contain only digits", Toast.LENGTH_SHORT).show();
                         return;
                     }
+                    if (!isFutureDate(exp)) return;
 
-                    boolean success = onAddItemManually(id, name, expiration);
-                    if (success) {
+                    onAddItemManually(upc, name, exp);
+                })
+                .setNegativeButton("Cancel", (d, w) -> currentIdField = null)
+                .show();
+    }
 
-                        Toast.makeText(this, "Item added!", Toast.LENGTH_SHORT).show();
-                    } else {
-                        Toast.makeText(this, "Failed to add item", Toast.LENGTH_SHORT).show();
-                    }
+    /** Prompts the user for a new expiration date and updates Firebase. */
+    private void promptForNewExpiration(DatabaseReference itemRef, FridgeItem item) {
+        @SuppressLint("InflateParams")
+        View v = getLayoutInflater().inflate(R.layout.dialog_update_exp, null);
+        EditText expInput = v.findViewById(R.id.inputNewExpiration);
 
+        new AlertDialog.Builder(this)
+                .setTitle("Update \"" + item.name + "\"")
+                .setView(v)
+                .setPositiveButton("Save", (d, w) -> {
+                    String newExp = expInput.getText().toString().trim();
+                    if (!isFutureDate(newExp)) return;
+
+                    itemRef.child("expirationDate").setValue(newExp)
+                            .addOnSuccessListener(a -> {
+                                Toast.makeText(this, "Expiration updated", Toast.LENGTH_SHORT).show();
+                                loadItems();
+                            })
+                            .addOnFailureListener(e ->
+                                    Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                 })
                 .setNegativeButton("Cancel", null)
                 .show();
     }
 
+    /* ───────────────────────── firebase helpers ─────────────────────── */
+
+    /** Adds a brand‑new item to Firebase. */
+    private void onAddItemManually(String upc, String name, String exp) {
+        String safeEmail = user.replace(".", "_");
+        DatabaseReference ref = FirebaseDatabase.getInstance()
+                .getReference("users").child(safeEmail).child("items");
+
+        FridgeItem item = new FridgeItem(upc, name, exp);
+
+        ref.child(upc).setValue(item)
+                .addOnSuccessListener(v -> {
+                    Toast.makeText(this, "Item saved!", Toast.LENGTH_SHORT).show();
+                    loadItems();
+                })
+                .addOnFailureListener(e ->
+                        Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+    }
+
+    /** After scanning for “existing item”, look it up and prompt for new date. */
+    private void handleExistingUpc(String upc) {
+        String safeEmail = user.replace(".", "_");
+        DatabaseReference itemRef = FirebaseDatabase.getInstance()
+                .getReference("users").child(safeEmail).child("items").child(upc);
+
+        itemRef.get().addOnSuccessListener(snap -> {
+            if (!snap.exists()) {
+                Toast.makeText(this, "Item not found. Use “New Item”.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            FridgeItem item = snap.getValue(FridgeItem.class);
+            promptForNewExpiration(itemRef, item);
+        });
+    }
+
+    /* ───────────────────────── utilities ────────────────────────────── */
+
+    /** Returns true if yyyy‑MM‑dd string is today or future; else shows toast. */
+    private boolean isFutureDate(String yyyymmdd) {
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+            sdf.setLenient(false);
+            Date entered = sdf.parse(yyyymmdd);
+
+            Calendar today = Calendar.getInstance();
+            today.set(Calendar.HOUR_OF_DAY, 0);
+            today.set(Calendar.MINUTE, 0);
+            today.set(Calendar.SECOND, 0);
+            today.set(Calendar.MILLISECOND, 0);
+
+            if (entered.before(today.getTime())) {
+                Toast.makeText(this, "Expiration date cannot be in the past", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+            return true;
+        } catch (ParseException e) {
+            Toast.makeText(this, "Invalid date format. Use YYYY-MM-DD", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+    }
+
+    /** Pulls all items for this user and displays them. */
     private void loadItems() {
         String safeEmail = user.replace(".", "_");
         DatabaseReference itemsRef = FirebaseDatabase.getInstance()
-                .getReference("users")
-                .child(safeEmail)
-                .child("items");
+                .getReference("users").child(safeEmail).child("items");
 
         TextView itemsView = findViewById(R.id.itemsView);
 
         itemsRef.get().addOnCompleteListener(task -> {
-            if (task.isSuccessful()) {
-                StringBuilder builder = new StringBuilder();
-
-                for (DataSnapshot itemSnapshot : task.getResult().getChildren()) {
-                    FridgeItem item = itemSnapshot.getValue(FridgeItem.class);
-                    if (item != null) {
-                        try {
-                            SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-                            Date expiration = sdf.parse(item.expirationDate);
-
-                            Calendar todayCal = Calendar.getInstance();
-                            todayCal.set(Calendar.HOUR_OF_DAY, 0);
-                            todayCal.set(Calendar.MINUTE, 0);
-                            todayCal.set(Calendar.SECOND, 0);
-                            todayCal.set(Calendar.MILLISECOND, 0);
-                            Date today = todayCal.getTime();
-
-                            Calendar expCal = Calendar.getInstance();
-                            expCal.setTime(expiration);
-                            expCal.set(Calendar.HOUR_OF_DAY, 0);
-                            expCal.set(Calendar.MINUTE, 0);
-                            expCal.set(Calendar.SECOND, 0);
-                            expCal.set(Calendar.MILLISECOND, 0);
-                            expiration = expCal.getTime();
-
-                            long diffInMillis = expiration.getTime() - today.getTime();
-                            long daysLeft = TimeUnit.MILLISECONDS.toDays(diffInMillis);
-
-                            builder.append("• ")
-                                    .append(item.name)
-                                    .append(" — Expires in ")
-                                    .append(daysLeft)
-                                    .append(" day").append(daysLeft != 1 ? "s" : "")
-                                    .append(" (").append(item.expirationDate).append(")\n");
-
-                        }
-                        catch (Exception e) {
-                            builder.append("• ")
-                                    .append(item.name)
-                                    .append(" (Exp: ")
-                                    .append(item.expirationDate)
-                                    .append(")\n");
-                        }
-
-                    }
-                }
-
-                itemsView.setText(builder.toString());
-            } else {
+            if (!task.isSuccessful()) {
                 itemsView.setText("Failed to load items.");
+                return;
             }
+            StringBuilder b = new StringBuilder();
+            for (DataSnapshot snap : task.getResult().getChildren()) {
+                FridgeItem item = snap.getValue(FridgeItem.class);
+                if (item == null) continue;
+
+                try {
+                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
+                    Date exp = sdf.parse(item.expirationDate);
+
+                    Calendar today = Calendar.getInstance();
+                    today.set(Calendar.HOUR_OF_DAY, 0);
+                    today.set(Calendar.MINUTE, 0);
+                    today.set(Calendar.SECOND, 0);
+                    today.set(Calendar.MILLISECOND, 0);
+
+                    long days = TimeUnit.MILLISECONDS.toDays(exp.getTime() - today.getTimeInMillis());
+
+                    b.append("• ").append(item.name)
+                            .append(" — Expires in ").append(days).append(" day")
+                            .append(days != 1 ? "s" : "")
+                            .append(" (").append(item.expirationDate).append(")\n");
+                } catch (Exception e) {
+                    b.append("• ").append(item.name)
+                            .append(" (Exp: ").append(item.expirationDate).append(")\n");
+                }
+            }
+            itemsView.setText(b.toString());
         });
     }
 
-
-
-    protected boolean onAddItemManually(int id, String name, String expirationDate) {
-        String safeEmail = user.replace(".", "_");
-        DatabaseReference userItemsRef = FirebaseDatabase.getInstance()
-                .getReference("users")
-                .child(safeEmail)
-                .child("items");
-
-        // Create a new item
-        FridgeItem item = new FridgeItem(id, name, expirationDate);
-
-        // Push item to Firebase under the user's items using the id as key
-        userItemsRef.child(String.valueOf(id)).setValue(item)
-                .addOnSuccessListener(aVoid -> {
-                    Toast.makeText(this, "Item saved!", Toast.LENGTH_SHORT).show();
-                    loadItems(); // 👈 refresh the view
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                });
-        return true;
-    }
-
-
+    /* ─────────────────────  swipe gesture override ──────────────────── */
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        int pointerCount = event.getPointerCount();
-
+        int ptrs = event.getPointerCount();
         switch (event.getActionMasked()) {
             case MotionEvent.ACTION_DOWN:
             case MotionEvent.ACTION_POINTER_DOWN:
-                if (pointerCount == 2) {
+                if (ptrs == 2) {
                     startY1 = event.getY(0);
                     startY2 = event.getY(1);
                     isTwoFingerSwipe = true;
                 }
                 break;
-
             case MotionEvent.ACTION_MOVE:
-                if (isTwoFingerSwipe && pointerCount == 2) {
-                    float endY1 = event.getY(0);
-                    float endY2 = event.getY(1);
-
-                    // Check for upward movement of both fingers
-                    if ((startY1 - endY1 > 100) && (startY2 - endY2 > 100)) {
-                        isTwoFingerSwipe = false; // prevent triggering multiple times
-
-                        // Simulate button click
-                        Button newItemButton = findViewById(R.id.newItemButton);
-                        newItemButton.performClick();
+                if (isTwoFingerSwipe && ptrs == 2) {
+                    if (startY1 - event.getY(0) > 100 && startY2 - event.getY(1) > 100) {
+                        isTwoFingerSwipe = false;
+                        findViewById(R.id.newItemButton).performClick();
                     }
                 }
                 break;
-
             case MotionEvent.ACTION_UP:
             case MotionEvent.ACTION_POINTER_UP:
-                startY1 = -1;
-                startY2 = -1;
+                startY1 = startY2 = -1;
                 isTwoFingerSwipe = false;
                 break;
         }
-
         return super.onTouchEvent(event);
     }
-
-
 }
