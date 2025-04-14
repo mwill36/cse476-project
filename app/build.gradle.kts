@@ -52,6 +52,10 @@ dependencies {
     implementation(libs.activity)
     implementation(libs.constraintlayout)
 
+    // Push Notifications
+    implementation("com.google.firebase:firebase-messaging")
+
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
