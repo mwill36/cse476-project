@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.EditText;
+import android.widget.ListView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -23,8 +24,10 @@ import com.google.firebase.database.FirebaseDatabase;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 
@@ -235,40 +238,21 @@ public class HomeActivity extends AppCompatActivity {
         DatabaseReference itemsRef = FirebaseDatabase.getInstance()
                 .getReference("users").child(safeEmail).child("items");
 
-        TextView itemsView = findViewById(R.id.itemsView);
+        ListView listView = findViewById(R.id.itemsList);
 
         itemsRef.get().addOnCompleteListener(task -> {
             if (!task.isSuccessful()) {
-                itemsView.setText("Failed to load items.");
+                Toast.makeText(this, "Failed to load items", Toast.LENGTH_SHORT).show();
                 return;
             }
-            StringBuilder b = new StringBuilder();
+            List<FridgeItem> fridgeItems = new ArrayList<>();
             for (DataSnapshot snap : task.getResult().getChildren()) {
                 FridgeItem item = snap.getValue(FridgeItem.class);
-                if (item == null) continue;
-
-                try {
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
-                    Date exp = sdf.parse(item.expirationDate);
-
-                    Calendar today = Calendar.getInstance();
-                    today.set(Calendar.HOUR_OF_DAY, 0);
-                    today.set(Calendar.MINUTE, 0);
-                    today.set(Calendar.SECOND, 0);
-                    today.set(Calendar.MILLISECOND, 0);
-
-                    long days = TimeUnit.MILLISECONDS.toDays(exp.getTime() - today.getTimeInMillis());
-
-                    b.append("• ").append(item.name)
-                            .append(" — Expires in ").append(days).append(" day")
-                            .append(days != 1 ? "s" : "")
-                            .append(" (").append(item.expirationDate).append(")\n");
-                } catch (Exception e) {
-                    b.append("• ").append(item.name)
-                            .append(" (Exp: ").append(item.expirationDate).append(")\n");
-                }
+                if (item != null) fridgeItems.add(item);
             }
-            itemsView.setText(b.toString());
+
+            PantryAdapter adapter = new PantryAdapter(this, fridgeItems, user, this::loadItems);
+            listView.setAdapter(adapter);
         });
     }
 
