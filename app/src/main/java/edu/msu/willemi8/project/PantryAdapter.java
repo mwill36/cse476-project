@@ -8,6 +8,7 @@ import android.view.ViewGroup;
 import android.widget.BaseAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -58,6 +59,8 @@ public class PantryAdapter extends BaseAdapter {
 
         TextView itemInfo = convertView.findViewById(R.id.itemInfo);
         Button editButton = convertView.findViewById(R.id.editButton);
+        ImageButton deleteButton = convertView.findViewById(R.id.deleteButton); // or ImageButton if you're using that
+
 
         String displayText = item.name;
         int textColor = android.graphics.Color.BLACK; // default color
@@ -151,6 +154,30 @@ public class PantryAdapter extends BaseAdapter {
                     })
                     .show();
         });
+        deleteButton.setOnClickListener(v -> {
+            new AlertDialog.Builder(context)
+                    .setTitle("Delete " + item.name + "?")
+                    .setMessage("Are you sure you want to delete this item?")
+                    .setPositiveButton("Delete", (dialog, which) -> {
+                        String safeEmail = userEmail.replace(".", "_");
+                        FirebaseDatabase.getInstance()
+                                .getReference("users")
+                                .child(safeEmail)
+                                .child("items")
+                                .child(item.id)
+                                .removeValue()
+                                .addOnSuccessListener(a -> {
+                                    Toast.makeText(context, "Deleted " + item.name, Toast.LENGTH_SHORT).show();
+                                    onDataChanged.run(); // Refresh list
+                                })
+                                .addOnFailureListener(e ->
+                                        Toast.makeText(context, "Delete failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+        });
+
+
 
         return convertView;
     }
