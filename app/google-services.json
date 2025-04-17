@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "82122079486",
+    "project_id": "project-d58a1",
+    "storage_bucket": "project-d58a1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:82122079486:android:d528e08aac5fabfd1b39af",
+        "android_client_info": {
+          "package_name": "edu.msu.willemi8.project"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCcMR3eLFk4VO9OZo5hHKz5C5G_OTwOQps"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
