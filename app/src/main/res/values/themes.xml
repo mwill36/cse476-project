@@ -2,8 +2,24 @@
     <!-- Base application theme. -->
     <style name="Base.Theme.Project" parent="Theme.Material3.DayNight.NoActionBar">
         <!-- Customize your light theme here. -->
-        <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
+        <item name="colorPrimary">@color/button_color</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/button_color</item>
+        <item name="materialButtonStyle">@style/RectButtonStyle</item>
+
     </style>
+
+    <!-- ✅ Define RectShape separately -->
+    <style name="RectShape">
+        <item name="cornerSize">0dp</item>
+    </style>
+    <style name="RectButtonStyle" parent="Widget.Material3.Button">
+        <item name="shapeAppearance">@style/RectShape</item>
+    </style>
+    <style name="RoundedButtonShape" parent="">
+        <item name="cornerSize">20dp</item> <!-- Adjust as needed -->
+    </style>
+
 
     <style name="Theme.Project" parent="Base.Theme.Project" />
 </resources>
