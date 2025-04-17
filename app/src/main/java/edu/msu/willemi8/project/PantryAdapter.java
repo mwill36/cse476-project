@@ -137,21 +137,6 @@ public class PantryAdapter extends BaseAdapter {
                                         Toast.makeText(context, "Update failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
                     })
                     .setNegativeButton("Cancel", null)
-                    .setNeutralButton("Delete", (dialog, which) -> {
-                        String safeEmail = userEmail.replace(".", "_");
-                        FirebaseDatabase.getInstance()
-                                .getReference("users")
-                                .child(safeEmail)
-                                .child("items")
-                                .child(item.id)
-                                .removeValue()
-                                .addOnSuccessListener(a -> {
-                                    Toast.makeText(context, "Deleted " + item.name, Toast.LENGTH_SHORT).show();
-                                    onDataChanged.run();
-                                })
-                                .addOnFailureListener(e ->
-                                        Toast.makeText(context, "Delete failed: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-                    })
                     .show();
         });
         deleteButton.setOnClickListener(v -> {
