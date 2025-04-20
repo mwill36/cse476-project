@@ -161,6 +161,11 @@ public class HomeActivity extends AppCompatActivity {
                     itemRef.child("expirationDate").setValue(newExp)
                             .addOnSuccessListener(a -> {
                                 Toast.makeText(this, "Expiration updated", Toast.LENGTH_SHORT).show();
+                                // Update the item object with the new expiration date
+                                item.expirationDate = newExp;
+
+                                // Check if notification should be sent
+                                scheduleExpirationNotification(item);
                                 loadItems();
                             })
                             .addOnFailureListener(e ->
@@ -241,17 +246,19 @@ public class HomeActivity extends AppCompatActivity {
         ListView listView = findViewById(R.id.itemsList);
 
         itemsRef.get().addOnCompleteListener(task -> {
-            if (!task.isSuccessful()) {
+            if (!task.isSuccessful())
+            {
                 Toast.makeText(this, "Failed to load items", Toast.LENGTH_SHORT).show();
                 return;
             }
             List<FridgeItem> fridgeItems = new ArrayList<>();
-            for (DataSnapshot snap : task.getResult().getChildren()) {
+            for (DataSnapshot snap : task.getResult().getChildren())
+            {
                 FridgeItem item = snap.getValue(FridgeItem.class);
                 if (item != null) fridgeItems.add(item);
             }
 
-            PantryAdapter adapter = new PantryAdapter(this, fridgeItems, user, this::loadItems);
+            PantryAdapter adapter = new PantryAdapter(this, fridgeItems, user, this::loadItems, this::scheduleExpirationNotification);
             listView.setAdapter(adapter);
         });
     }
@@ -288,15 +295,12 @@ public class HomeActivity extends AppCompatActivity {
 
     /* ────────────────────── notification helpers ───────────────────── */
 
-    /**
-     * Creates the notification channel required for Android 8.0 (API level 26) and higher
-     */
+    /** Creates the notification channel required for Android 8.0 (API level 26) and higher */
     private void createNotificationChannel() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             CharSequence name = "Pantry Notifications";
             String description = "Notifications for expiring pantry items";
             int importance = android.app.NotificationManager.IMPORTANCE_HIGH;
-
             android.app.NotificationChannel channel = new android.app.NotificationChannel(
                     NOTIFICATION_CHANNEL_ID, name, importance);
             channel.setDescription(description);
@@ -305,89 +309,78 @@ public class HomeActivity extends AppCompatActivity {
             channel.setLightColor(android.graphics.Color.RED);
             channel.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
             channel.setShowBadge(true);
-
-
-            android.app.NotificationManager notificationManager = getSystemService(
-                    android.app.NotificationManager.class);
+            android.app.NotificationManager notificationManager = getSystemService(android.app.NotificationManager.class);
             notificationManager.createNotificationChannel(channel);
         }
     }
 
-    /**
-     * Checks if notifications should be sent for a newly added or updated item
-     */
+    /** Checks if notifications should be sent for a newly added or updated item*/
     private void scheduleExpirationNotification(FridgeItem item) {
-        try {
-
+        try
+        {
             SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd", Locale.US);
             dateFormat.setLenient(false);
             Date expirationDate = dateFormat.parse(item.expirationDate);
-
-            if (expirationDate == null) {
+            if (expirationDate == null)
+            {
                 return;
             }
-
-
             Calendar today = Calendar.getInstance();
             today.set(Calendar.HOUR_OF_DAY, 0);
             today.set(Calendar.MINUTE, 0);
             today.set(Calendar.SECOND, 0);
             today.set(Calendar.MILLISECOND, 0);
             Date todayDate = today.getTime();
-
-
             long daysDiff = TimeUnit.MILLISECONDS.toDays(expirationDate.getTime() - todayDate.getTime());
-
-
-            if (daysDiff == 0) {
+            if (daysDiff == 0)
+            {
                 sendExpiresNotification(item, 0);
             }
-
-            else if (daysDiff > 0 && daysDiff <= 3) {
+            else if (daysDiff > 0 && daysDiff <= 3)
+            {
                 sendExpiresNotification(item, daysDiff);
             }
-        } catch (ParseException e) {
+        }
+        catch (ParseException e)
+        {
             Toast.makeText(this, "Invalid date format", Toast.LENGTH_SHORT).show();
         }
     }
 
-
+    /** Actually sends the push notification */
     private void sendExpiresNotification(FridgeItem item, long daysRemaining) {
-        try {
-
+        try
+        {
             Intent intent = new Intent(this, HomeActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             intent.putExtra("email", user);
-
             int requestCode;
-            try {
-
+            try
+            {
                 requestCode = Integer.parseInt(item.id) + (int)(daysRemaining * 1000);
-            } catch (NumberFormatException e) {
-
+            }
+            catch (NumberFormatException e)
+            {
                 requestCode = item.id.hashCode() + (int)(daysRemaining * 1000);
             }
-
-
-            if (requestCode < 0) {
+            if (requestCode < 0)
+            {
                 requestCode = Math.abs(requestCode);
             }
-
-            PendingIntent pendingIntent = PendingIntent.getActivity(
-                    this, requestCode, intent, PendingIntent.FLAG_IMMUTABLE);
-
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, requestCode, intent, PendingIntent.FLAG_IMMUTABLE);
             String title;
             String content;
-
-            if (daysRemaining == 0) {
+            if (daysRemaining == 0)
+            {
                 title = "Item Expires Today!";
                 content = item.name + " expires today!";
-            } else {
+            }
+            else
+            {
                 String daysText = daysRemaining == 1 ? "day" : "days";
                 title = "Item Expiring Soon!";
                 content = item.name + " will expire in " + daysRemaining + " " + daysText + "!";
             }
-
             NotificationCompat.Builder builder = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
                     .setSmallIcon(android.R.drawable.ic_dialog_alert)
                     .setContentTitle(title)
@@ -399,31 +392,37 @@ public class HomeActivity extends AppCompatActivity {
                     .setSound(android.provider.Settings.System.DEFAULT_NOTIFICATION_URI)
                     .setVibrate(new long[]{0, 300, 100, 300})
                     .setDefaults(NotificationCompat.DEFAULT_ALL);
-
             NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
-
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU)
+            {
                 if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
-                        android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        android.content.pm.PackageManager.PERMISSION_GRANTED)
+                {
                     requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, 101);
                     return;
                 }
             }
-
             notificationManager.notify(requestCode, builder.build());
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             e.printStackTrace();
         }
     }
 
+
+    /** Requests notification permissions on device */
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-
-        if (requestCode == 101) {
-            if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == 101)
+        {
+            if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED)
+            {
                 Toast.makeText(this, "Notification permission granted", Toast.LENGTH_SHORT).show();
-            } else {
+            }
+            else
+            {
                 Toast.makeText(this, "Notification permission denied", Toast.LENGTH_SHORT).show();
             }
         }

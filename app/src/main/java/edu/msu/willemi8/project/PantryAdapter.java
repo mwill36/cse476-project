@@ -26,12 +26,14 @@ public class PantryAdapter extends BaseAdapter {
     private final List<FridgeItem> items;
     private final String userEmail;
     private final Runnable onDataChanged;
+    private final java.util.function.Consumer<FridgeItem> notificationScheduler;
 
-    public PantryAdapter(Context context, List<FridgeItem> items, String userEmail, Runnable onDataChanged) {
+    public PantryAdapter(Context context, List<FridgeItem> items, String userEmail, Runnable onDataChanged, java.util.function.Consumer<FridgeItem> notificationScheduler) {
         this.context = context;
         this.items = items;
         this.userEmail = userEmail;
         this.onDataChanged = onDataChanged;
+        this.notificationScheduler = notificationScheduler;
     }
 
     @Override
@@ -131,6 +133,9 @@ public class PantryAdapter extends BaseAdapter {
                                 .setValue(item)
                                 .addOnSuccessListener(a -> {
                                     Toast.makeText(context, "Item updated", Toast.LENGTH_SHORT).show();
+                                    if (notificationScheduler != null) {
+                                        notificationScheduler.accept(item);
+                                    }
                                     onDataChanged.run();
                                 })
                                 .addOnFailureListener(e ->
