@@ -14,6 +14,7 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
@@ -55,6 +56,10 @@ public class HomeActivity extends AppCompatActivity {
     private boolean scanForExisting = false;
     /** Activity‑result launcher for ScannerActivity */
     private ActivityResultLauncher<Intent> barcodeLauncher;
+
+    // --- global product catalog (UPC ➜ name) ---
+    private final DatabaseReference catalogRef =
+            FirebaseDatabase.getInstance().getReference("products");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,8 +109,19 @@ public class HomeActivity extends AppCompatActivity {
 
     /* ───────────────────────────── dialogs ───────────────────────────── */
 
-    /** Opens the Add‑Item dialog (manual entry or barcode scan). */
+    /** Convenience – plain call from the + button (no prefills) */
     private void showAddItemDialog() {
+        showAddItemDialog(null, null);
+    }
+
+    /**
+     * Re‑usable dialog   (A) from + button,   (B) from scanner fallback
+     * @param upcPrefill   null or the scanned UPC to lock in
+     * @param namePrefill  null or a suggested product name (from catalog)
+     */
+    private void showAddItemDialog(@Nullable String upcPrefill,
+                                   @Nullable String namePrefill) {
+
         @SuppressLint("InflateParams")
         View dialog = getLayoutInflater().inflate(R.layout.dialog_add_item, null);
 
@@ -113,17 +129,36 @@ public class HomeActivity extends AppCompatActivity {
         EditText inputNm  = dialog.findViewById(R.id.inputName);
         EditText inputExp = dialog.findViewById(R.id.inputExpiration);
 
-        currentIdField = inputId;
+        // If we arrive from a scan, remember this EditText so the Scan button can fill it
+        currentIdField = (upcPrefill == null) ? inputId : null;
 
-        dialog.findViewById(R.id.buttonScan)
-                .setOnClickListener(v ->
-                        barcodeLauncher.launch(new Intent(this, ScannerActivity.class)));
+        // Apply prefills (and lock UPC if present)
+        if (upcPrefill != null) {
+            inputId.setText(upcPrefill);
+            inputId.setEnabled(false);
+        }
+        if (namePrefill != null) {
+            inputNm.setText(namePrefill);
+        }
+
+        View scanBtn = dialog.findViewById(R.id.buttonScan);
+
+        if (upcPrefill == null) {           // normal “Add New Item” flow
+            scanBtn.setVisibility(View.VISIBLE);
+            scanBtn.setOnClickListener(v -> {
+                /* remember which EditText should receive the scanned UPC */
+                currentIdField = inputId;
+                barcodeLauncher.launch(new Intent(this, ScannerActivity.class));
+            });
+        } else {                            // we already have the UPC → hide button
+            scanBtn.setVisibility(View.GONE);
+        }
 
         new AlertDialog.Builder(this)
                 .setTitle("Add New Item")
                 .setView(dialog)
                 .setPositiveButton("Add", (d, w) -> {
-                    currentIdField = null;           // dialog closing
+                    currentIdField = null;                 // dialog is closing
 
                     String upc  = inputId.getText().toString().trim();
                     String name = inputNm.getText().toString().trim();
@@ -139,9 +174,9 @@ public class HomeActivity extends AppCompatActivity {
                     }
                     if (!isFutureDate(exp)) return;
 
-                    onAddItemManually(upc, name, exp);
+                    onAddItemManually(upc, name, exp);     // <‑‑ will also cache name in catalog
                 })
-                .setNegativeButton("Cancel", (d, w) -> currentIdField = null)
+                .setNegativeButton("Cancel", (d,w) -> currentIdField = null)
                 .show();
     }
 
@@ -187,6 +222,7 @@ public class HomeActivity extends AppCompatActivity {
 
         ref.child(upc).setValue(item)
                 .addOnSuccessListener(v -> {
+                    catalogRef.child(upc).setValue(name);   // NEW ➊
                     Toast.makeText(this, "Item saved!", Toast.LENGTH_SHORT).show();
                     loadItems();
                     scheduleExpirationNotification(item);
@@ -203,7 +239,11 @@ public class HomeActivity extends AppCompatActivity {
 
         itemRef.get().addOnSuccessListener(snap -> {
             if (!snap.exists()) {
-                Toast.makeText(this, "Item not found. Use “New Item”.", Toast.LENGTH_SHORT).show();
+                // Look in the global catalog for a remembered name
+                catalogRef.child(upc).get().addOnSuccessListener(prodSnap -> {
+                    String knownName = prodSnap.getValue(String.class);   // could be null
+                    showAddItemDialog(upc, knownName);                    // 👈 opens dialog with prefills
+                });
                 return;
             }
             FridgeItem item = snap.getValue(FridgeItem.class);
